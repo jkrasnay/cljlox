@@ -38,22 +38,22 @@
 
 
 (def keywords
-  {"and"    :and
-   "class"  :class
-   "else"   :else
-   "false"  :false
-   "for"    :for
-   "fun"    :fun
-   "if"     :if
-   "nil"    :nil
-   "or"     :or
-   "print"  :print
-   "return" :return
-   "super"  :super
-   "this"   :this
-   "true"   :true
-   "var"    :var
-   "while"  :while})
+  #{"and"
+    "class"
+    "else"
+    "false"
+    "for"
+    "fun"
+    "if"
+    "nil"
+    "or"
+    "print"
+    "return"
+    "super"
+    "this"
+    "true"
+    "var"
+    "while"})
 
 
 (defn reset
@@ -212,9 +212,9 @@
 
 (defn add-ident
   [lex]
-  (let [value (apply str (:chars lex))]
-    (if-let [kw (keywords value)]
-      (add-token lex kw)
+  (let [ident (apply str (:chars lex))]
+    (if (keywords ident)
+      (add-token lex (keyword ident))
       (add-token lex :identifier identity))))
 
 
