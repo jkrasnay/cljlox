@@ -175,7 +175,7 @@
 (defmethod consume-char :slash
   [lex c]
   (cond
-    (= \/ c) (-> lex reset (set-state :comment))
+    (= \/ c) (-> lex (set-state :comment))
     :else    (-> lex (add-token :slash) (consume-char c))))
 
 
