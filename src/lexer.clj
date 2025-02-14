@@ -131,44 +131,44 @@
   [lex c]
   (cond
     (#{\space \tab :eof} c) lex
-    (= \newline c)     (next-line lex)
-    (single-tokens c)  (-> lex (append-char c) (add-token (single-tokens c)))
-    (= \! c)           (-> lex (append-char c) (set-state :bang))
-    (= \= c)           (-> lex (append-char c) (set-state :equal))
-    (= \< c)           (-> lex (append-char c) (set-state :less))
-    (= \> c)           (-> lex (append-char c) (set-state :greater))
-    (= \/ c)           (-> lex (append-char c) (set-state :slash))
+    (= \newline c)     (-> lex next-line)
+    (single-tokens c)  (-> lex (add-token (single-tokens c)))
+    (= \! c)           (-> lex (set-state :bang))
+    (= \= c)           (-> lex (set-state :equal))
+    (= \< c)           (-> lex (set-state :less))
+    (= \> c)           (-> lex (set-state :greater))
+    (= \/ c)           (-> lex (set-state :slash))
     (= \" c)           (-> lex (set-state :string))
     (digit? c)         (-> lex (append-char c) (set-state :number))
     (alpha? c)         (-> lex (append-char c) (set-state :ident))
-    :else              (report-error lex (str "Unrecognized character: " c))))
+    :else              (-> lex (report-error (str "Unrecognized character: " c)))))
 
 
 (defmethod consume-char :bang
   [lex c]
   (cond
-    (= \= c) (-> lex (append-char c) (add-token :bang-equal))
+    (= \= c) (-> lex (add-token :bang-equal))
     :else    (-> lex (add-token :bang) (consume-char c))))
 
 
 (defmethod consume-char :equal
   [lex c]
   (cond
-    (= \= c) (-> lex (append-char c) (add-token :equal-equal))
+    (= \= c) (-> lex (add-token :equal-equal))
     :else    (-> lex (add-token :equal) (consume-char c))))
 
 
 (defmethod consume-char :less
   [lex c]
   (cond
-    (= \= c) (-> lex (append-char c) (add-token :less-equal))
+    (= \= c) (-> lex (add-token :less-equal))
     :else    (-> lex (add-token :less) (consume-char c))))
 
 
 (defmethod consume-char :greater
   [lex c]
   (cond
-    (= \= c) (-> lex (append-char c) (add-token :greater-equal))
+    (= \= c) (-> lex (add-token :greater-equal))
     :else    (-> lex (add-token :greater) (consume-char c))))
 
 
@@ -231,7 +231,8 @@
               {:state :start
                :chars []
                :line 1
-               :tokens []}
+               :tokens []
+               :errors []}
               (concat s [:eof]))
       (select-keys [:tokens :errors])))
 
@@ -252,7 +253,7 @@
                   ="))
   (dump (tokenize "  \"my
                   string\""))
-  (dump (tokenize "12.34 + 4.32"))
+  (dump (tokenize "12.34 + 4"))
   (dump (tokenize "name_2 = \"Ringo\" or age > 42"))
 
   )
