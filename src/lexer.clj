@@ -233,17 +233,17 @@
                :line 1
                :tokens []
                :errors []}
-              (concat s [:eof]))
+              s)
+      (consume-char :eof)
       (select-keys [:tokens :errors])))
 
 
 (comment
 
   (defn dump
-    [{:keys [tokens errors]
-      :as foo}]
+    [{:keys [tokens errors]}]
     (doseq [{:keys [line message]} errors]
-      (println "Line" line "-" message))
+      (println "Error, line" line "-" message))
     tokens)
 
   (dump (tokenize " + - !+"))
@@ -255,5 +255,9 @@
                   string\""))
   (dump (tokenize "12.34 + 4"))
   (dump (tokenize "name_2 = \"Ringo\" or age > 42"))
+  (dump (tokenize "name_2=\"Ringo\"or age>42"))
+  (dump (tokenize "1.2."))
+  (dump (tokenize "person.first_name"))
+  (dump (tokenize "\"unterminated"))
 
   )
