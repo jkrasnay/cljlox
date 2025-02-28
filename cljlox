@@ -1,0 +1,2 @@
+#!/bin/bash
+rlwrap bb -cp src -m main

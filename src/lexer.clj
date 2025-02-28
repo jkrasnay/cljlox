@@ -24,6 +24,7 @@
 
 
 
+;; See section 4.2.1
 (def single-tokens
   {\( :left-paren
    \) :right-paren
@@ -72,12 +73,14 @@
    (add-token lex token-type nil))
   ([lex token-type value-fn]
    (let [{:keys [chars
-                 line]} lex]
+                 line]} lex
+         lexeme (apply str chars)]
      (-> lex
-         (update :tokens conj (cond-> {:type token-type
+         (update :tokens conj (cond-> {:token-type token-type
+                                       :lexeme lexeme
                                        :line line}
                                 value-fn
-                                (assoc :value (value-fn (apply str chars)))))
+                                (assoc :value (value-fn lexeme))))
          reset))))
 
 
@@ -89,8 +92,7 @@
 (defn report-error
   [lex message]
   (-> lex
-      (update :errors conj {:line (:line lex)
-                            :message message})
+      (update :errors conj (format "Line %d: %s" (:line lex) message))
       reset))
 
 
@@ -132,13 +134,13 @@
   (cond
     (#{\space \tab :eof} c) lex
     (= \newline c)     (-> lex next-line)
-    (single-tokens c)  (-> lex (add-token (single-tokens c)))
-    (= \! c)           (-> lex (set-state :bang))
-    (= \= c)           (-> lex (set-state :equal))
-    (= \< c)           (-> lex (set-state :less))
-    (= \> c)           (-> lex (set-state :greater))
-    (= \/ c)           (-> lex (set-state :slash))
-    (= \" c)           (-> lex (set-state :string))
+    (single-tokens c)  (-> lex (append-char c) (add-token (single-tokens c)))
+    (= \! c)           (-> lex (append-char c) (set-state :bang))
+    (= \= c)           (-> lex (append-char c) (set-state :equal))
+    (= \< c)           (-> lex (append-char c) (set-state :less))
+    (= \> c)           (-> lex (append-char c) (set-state :greater))
+    (= \/ c)           (-> lex (append-char c) (set-state :slash))
+    (= \" c)           (-> lex (append-char c) (set-state :string))
     (digit? c)         (-> lex (append-char c) (set-state :number))
     (alpha? c)         (-> lex (append-char c) (set-state :ident))
     :else              (-> lex (report-error (str "Unrecognized character: " c)))))
@@ -147,28 +149,28 @@
 (defmethod consume-char :bang
   [lex c]
   (cond
-    (= \= c) (-> lex (add-token :bang-equal))
+    (= \= c) (-> lex (append-char c) (add-token :bang-equal))
     :else    (-> lex (add-token :bang) (consume-char c))))
 
 
 (defmethod consume-char :equal
   [lex c]
   (cond
-    (= \= c) (-> lex (add-token :equal-equal))
+    (= \= c) (-> lex (append-char c) (add-token :equal-equal))
     :else    (-> lex (add-token :equal) (consume-char c))))
 
 
 (defmethod consume-char :less
   [lex c]
   (cond
-    (= \= c) (-> lex (add-token :less-equal))
+    (= \= c) (-> lex (append-char c) (add-token :less-equal))
     :else    (-> lex (add-token :less) (consume-char c))))
 
 
 (defmethod consume-char :greater
   [lex c]
   (cond
-    (= \= c) (-> lex (add-token :greater-equal))
+    (= \= c) (-> lex (append-char c) (add-token :greater-equal))
     :else    (-> lex (add-token :greater) (consume-char c))))
 
 
@@ -186,11 +188,16 @@
     :else          lex))
 
 
+(defn trim-quotes
+  [s]
+  (subs s 1 (dec (count s))))
+
+
 (defmethod consume-char :string
   [lex c]
   (cond
     (= \newline c) (-> lex next-line (append-char c))
-    (= \" c)       (-> lex (add-token :string identity))
+    (= \" c)       (-> lex (append-char c) (add-token :string trim-quotes))
     (= :eof c)     (-> lex (report-error "Unterminated string") (consume-char c))
     :else          (-> lex (append-char c))))
 
@@ -202,6 +209,11 @@
     (= \. c)   (-> lex (append-char c) (set-state :frac))
     :else      (-> lex (add-token :number parse-double) (consume-char c))))
 
+
+;; TODO: small bug here.  The book says that numbers cannot end with a period.
+;; To fix this should perhaps have an :frac-first state that only accepts
+;; the dot as part of the number if the next char is a digit; else, it
+;; adds the integer before the dot and re-consumes both the dot and c.
 
 (defmethod consume-char :frac
   [lex c]
@@ -246,6 +258,8 @@
       (println "Error, line" line "-" message))
     tokens)
 
+  (tokenize "%")
+  (tokenize "\"sdfj")
   (dump (tokenize " + - !+"))
   (dump (tokenize " ( + = )"))
   (dump (tokenize " ( + /= )"))
