@@ -6,40 +6,35 @@
     parser))
 
 
-(defn evaluate
-  "Returns a map with the following keys:
-
-  :errors | Seq of error messages
-  :result | Result of the evaluation
-  "
+(defn evaluate!
   [s]
-  (let [{:keys [errors
-                tokens]} (lexer/tokenize s)]
-    (if (seq errors)
-      {:errors errors}
-      (let [{:keys [errors
-                    ast]} (parser/parse tokens)]
-        (if (seq errors)
-          {:errors errors}
+  (when-not (string/blank? s)
+    (let [{:keys [errors
+                  statements]} (parser/parse s)]
+      (if (seq errors)
+        (doseq [error errors]
+          (println error))
+        (doseq [statement statements]
           (try
-            {:result (interpreter/evaluate ast)}
+            (interpreter/evaluate statement)
             (catch Exception e
-              {:errors [(.getMessage e)]})))))))
+              (println (.getMessage e)))))))))
 
 
-(defn -main
-  [& args]
+(defn repl
+  []
   (loop []
     (print "cljlox> ")
     (flush)
     (let [s (read-line)]
       (when s
-        (when-not (string/blank? s)
-          (let [{:keys [errors
-                        result]} (evaluate s)]
-            (if (seq errors)
-              (doseq [error errors]
-                (println error))
-              (println result))))
-        (recur))))
-  (println))
+        (evaluate! s)
+        (recur)))))
+
+
+(defn -main
+  [& args]
+  (if (seq args)
+    (doseq [arg args]
+      (evaluate! (slurp arg)))
+    (repl)))

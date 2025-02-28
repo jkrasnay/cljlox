@@ -1,6 +1,8 @@
 (ns parser
   (:require
-    [clojure.string :as string]))
+    [clojure.string :as string]
+    lexer))
+
 
 ;; Like the lexer, the parser needs a parse state to thread through our parsing functions.
 ;;
@@ -174,34 +176,53 @@
   (binary-expr parse-state comparison :bang-equal :equal-equal))
 
 
-(defn parse
+(defn expression-statement
+  [parse-state]
+  (let [parse-state (-> parse-state
+                        expression
+                        (expect-token :semicolon "Expected ';'"))]
+    (assoc parse-state :ast {:node-type :expression
+                             :expression (:ast parse-state)})))
+
+
+(defn print-statement
+  [parse-state]
+  (let [parse-state (-> parse-state
+                        expression
+                        (expect-token :semicolon "Expected ';'"))]
+    (assoc parse-state :ast {:node-type :print
+                             :expression (:ast parse-state)})))
+
+
+(defn statement
+  [parse-state]
+  (cond
+    (match parse-state :print) (-> parse-state drop-token print-statement)
+    :else                      (-> parse-state expression-statement)))
+
+
+(defn parse-tokens
   [tokens]
-  (try
-    {:ast (:ast (expression {:tokens tokens}))}
-    (catch Exception e
-      {:errors [(.getMessage e)]})))
+  (loop [tokens tokens
+         statements []
+         all-errors []]
+    (if (seq tokens)
+      (let [{:keys [tokens ast errors]} (statement {:tokens tokens})]
+        (if (seq errors)
+          (recur tokens
+                 statements
+                 (into all-errors errors))
+          (recur tokens
+                 (conj statements ast)
+                 errors)))
+      {:statements statements
+       :errors all-errors})))
 
 
-(comment
-
-  (require 'lexer)
-  (require 'interpreter)
-
-  (-> "\"name\" + 1"
-      lexer/tokenize
-      :tokens
-      parse
-      ;ast->string
-      interpreter/evaluate
-      )
-
-  (-> ")"
-      lexer/tokenize
-      :tokens
-      parse
-      ast->string
-      )
-
-  )
-
-
+(defn parse
+  [s]
+  (let [{:keys [errors
+                tokens]} (lexer/tokenize s)]
+    (if (seq errors)
+      {:errors errors}
+      (parse-tokens tokens))))

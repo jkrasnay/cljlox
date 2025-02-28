@@ -43,3 +43,8 @@
       :bang-equal    (not= left-value right-value)
       :equal-equal   (= left-value right-value)
       )))
+
+
+(defmethod evaluate :print
+  [{:keys [expression]}]
+  (println (evaluate expression)))
