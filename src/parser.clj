@@ -1,5 +1,6 @@
 (ns parser
   (:require
+    [clojure.pprint :refer [pprint]]
     [clojure.string :as string]
     lexer))
 
@@ -75,20 +76,18 @@
   (update parse-state :tokens rest))
 
 
-(defn expect-token
+(defn assert-next-token
   [parse-state token-type message]
   (if (= token-type (:token-type (next-token parse-state)))
-    (drop-token parse-state)
+    parse-state
     (throw-error (next-token parse-state) message)))
 
 
-;; Section 6.3.3
-(defn synchronize
+(defn assert-and-drop-semicolon
   [parse-state]
-  (loop [parse-state (drop-token parse-state)]
-    (if (#{:class :fun :var :for :if :while :print :return} (:token-type (next-token parse-state)))
-      parse-state
-      (recur (drop-token parse-state)))))
+  (-> parse-state
+      (assert-next-token :semicolon "Expected ';'")
+      drop-token))
 
 
 (defn match
@@ -123,7 +122,7 @@
                                            :value value})))
   ([parse-state]
    (-> parse-state drop-token (assoc :ast {:node-type :literal
-                                          :value (-> parse-state next-token :value)}))))
+                                           :value (-> parse-state next-token :value)}))))
 
 
 (declare expression)
@@ -139,9 +138,14 @@
     (match parse-state :left-paren)     (let [parse-state (-> parse-state
                                                               drop-token
                                                               expression
-                                                              (expect-token :right-paren "Expected ')' after expression"))]
+                                                              (assert-next-token :right-paren "Expected ')' after expression")
+                                                              drop-token)]
                                           (assoc parse-state :ast {:node-type :grouping
                                                                    :expression (:ast parse-state)}))
+    (match parse-state :identifier)     (-> parse-state
+                                            drop-token
+                                            (assoc :ast {:node-type :variable
+                                                         :name (:lexeme (next-token parse-state))}))
     :else (throw-error (next-token parse-state) "Expected expression")))
 
 
@@ -180,7 +184,7 @@
   [parse-state]
   (let [parse-state (-> parse-state
                         expression
-                        (expect-token :semicolon "Expected ';'"))]
+                        assert-and-drop-semicolon)]
     (assoc parse-state :ast {:node-type :expression
                              :expression (:ast parse-state)})))
 
@@ -189,7 +193,7 @@
   [parse-state]
   (let [parse-state (-> parse-state
                         expression
-                        (expect-token :semicolon "Expected ';'"))]
+                        assert-and-drop-semicolon)]
     (assoc parse-state :ast {:node-type :print
                              :expression (:ast parse-state)})))
 
@@ -201,13 +205,52 @@
     :else                      (-> parse-state expression-statement)))
 
 
+(defn var-declaration
+  [parse-state]
+  (assert-next-token parse-state :identifier "Expected variable name")
+  (let [name (next-token parse-state)
+        parse-state (drop-token parse-state)]
+    (if (match parse-state :equal)
+      (let [parse-state (-> parse-state
+                            drop-token
+                            expression
+                            assert-and-drop-semicolon)]
+        (assoc parse-state :ast {:node-type :var
+                                 :name name
+                                 :initializer (:ast parse-state)}))
+      (-> parse-state
+          assert-and-drop-semicolon
+          (assoc :ast {:node-type :var
+                       :name name})))))
+
+
+;; Section 6.3.3
+(defn synchronize
+  [parse-state]
+  (loop [parse-state (drop-token parse-state)]
+    (if (#{:class :fun :var :for :if :while :print :return} (:token-type (next-token parse-state)))
+      parse-state
+      (recur (drop-token parse-state)))))
+
+
+(defn declaration
+  [parse-state]
+  (try
+    (cond
+      (match parse-state :var) (-> parse-state drop-token var-declaration)
+      :else                    (-> parse-state statement))
+    (catch Exception e
+      (println (.getMessage e))
+      (synchronize parse-state))))
+
+
 (defn parse-tokens
   [tokens]
   (loop [tokens tokens
          statements []
          all-errors []]
     (if (seq tokens)
-      (let [{:keys [tokens ast errors]} (statement {:tokens tokens})]
+      (let [{:keys [tokens ast errors]} (declaration {:tokens tokens})]
         (if (seq errors)
           (recur tokens
                  statements

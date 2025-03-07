@@ -7,34 +7,38 @@
 
 
 (defn evaluate!
-  [s]
+  [s env]
   (when-not (string/blank? s)
     (let [{:keys [errors
                   statements]} (parser/parse s)]
       (if (seq errors)
         (doseq [error errors]
           (println error))
-        (doseq [statement statements]
-          (try
-            (interpreter/evaluate statement)
-            (catch Exception e
-              (println (.getMessage e)))))))))
+        (reduce (fn [env statement]
+                  (try
+                    (interpreter/execute statement env)
+                    (catch Exception e
+                      (println (.getMessage e))
+                      env)))
+                env
+                statements)))))
 
 
 (defn repl
   []
-  (loop []
+  (loop [env {}]
     (print "cljlox> ")
     (flush)
     (let [s (read-line)]
       (when s
-        (evaluate! s)
-        (recur)))))
+        (recur (evaluate! s env))))))
 
 
 (defn -main
   [& args]
   (if (seq args)
-    (doseq [arg args]
-      (evaluate! (slurp arg)))
+    (reduce (fn [env arg]
+              (evaluate! (slurp arg) env))
+            {}
+            args)
     (repl)))
