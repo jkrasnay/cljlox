@@ -1,23 +1,26 @@
 (ns interpreter)
 
-;;-- Evaluate ----------------------------------------------------------
-
 
 (defmulti evaluate
-  "Evaluate an expression node, returning the resulting value.
+  "Evaluate an expression node.
+
+  Returns a tuple of the resulting value and possibly updated env.
   "
   (fn [{:keys [node-type]} _env]
     node-type))
 
 
+;;-- Expressions ----------------------------------------------------------
+
+
 (defmethod evaluate :literal
-  [{:keys [value]} _env]
-  value)
+  [{:keys [value]} env]
+  [value env])
 
 
 (defmethod evaluate :variable
   [node env]
-  (get env (:name node)))
+  [(get env (:name node)) env])
 
 (defmethod evaluate :grouping
   [{:keys [expression]} env]
@@ -26,56 +29,55 @@
 
 (defmethod evaluate :unary
   [{:keys [operator right]} env]
-  (let [right-value (evaluate right env)]
-    (cond
-      (= :bang (:token-type operator)) (not right-value) ; Lox matches Clojure's concept of truthiness
-      (= :minus (:token-type operator)) (- right-value)
-      )))
+  (let [[right-value env] (evaluate right env)]
+    [(cond
+       (= :bang (:token-type operator)) (not right-value) ; Lox matches Clojure's concept of truthiness
+       (= :minus (:token-type operator)) (- right-value))
+     env]))
 
 
 (defmethod evaluate :binary
   [{:keys [left operator right]} env]
-  (let [left-value (evaluate left env)
-        right-value (evaluate right env)]
-    (condp = (:token-type operator)
-      :greater       (> left-value right-value)
-      :greater-equal (>= left-value right-value)
-      :less          (< left-value right-value)
-      :less-equal    (<= left-value right-value)
-      :minus         (- left-value right-value)
-      :slash         (/ left-value right-value)
-      :star          (* left-value right-value)
-      :plus          (if (and (number? left-value)
-                              (number? right-value))
-                       (+ left-value right-value)
-                       (str left-value right-value))
-      :bang-equal    (not= left-value right-value)
-      :equal-equal   (= left-value right-value)
-      )))
+  (let [[left-value env] (evaluate left env)
+        [right-value env] (evaluate right env)]
+    [(condp = (:token-type operator)
+       :greater       (> left-value right-value)
+       :greater-equal (>= left-value right-value)
+       :less          (< left-value right-value)
+       :less-equal    (<= left-value right-value)
+       :minus         (- left-value right-value)
+       :slash         (/ left-value right-value)
+       :star          (* left-value right-value)
+       :plus          (if (and (number? left-value)
+                               (number? right-value))
+                        (+ left-value right-value)
+                        (str left-value right-value))
+       :bang-equal    (not= left-value right-value)
+       :equal-equal   (= left-value right-value))
+     env]))
 
 
-;;-- Execute ----------------------------------------------------------
+;;-- Statements ----------------------------------------------------------
 
 
-(defmulti execute
-  "Execute a statement node, returning an updated environment.
-  "
-  (fn [{:keys [node-type]} _env]
-    node-type))
-
-
-(defmethod execute :expression
+(defmethod evaluate :expression
   [{:keys [expression]} env]
-  (println (evaluate expression env))
-  env)
+  (let [[value env] (evaluate expression env)]
+    (println value)
+    [nil env]))
 
 
-(defmethod execute :print
+(defmethod evaluate :print
   [{:keys [expression]} env]
-  (println (evaluate expression env))
-  env)
+  (let [[value env] (evaluate expression env)]
+    (println value)
+    [nil env]))
 
 
-(defmethod execute :var
+(defmethod evaluate :var
   [{:keys [name initializer]} env]
-  (assoc env (:lexeme name) (when initializer (evaluate initializer env))))
+  (let [[value env] (if initializer
+                      (evaluate initializer env)
+                      [nil env])]
+    [nil
+     (assoc env (:lexeme name) value)]))

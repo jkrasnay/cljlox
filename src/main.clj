@@ -17,7 +17,8 @@
             env)
         (reduce (fn [env statement]
                   (try
-                    (interpreter/execute statement env)
+                    (let [[_ env] (interpreter/evaluate statement env)]
+                      env)
                     (catch Exception e
                       (println (.getMessage e))
                       env)))
