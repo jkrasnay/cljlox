@@ -12,8 +12,9 @@
     (let [{:keys [errors
                   statements]} (parser/parse s)]
       (if (seq errors)
-        (doseq [error errors]
-          (println error))
+        (do (doseq [error errors]
+              (println error))
+            env)
         (reduce (fn [env statement]
                   (try
                     (interpreter/execute statement env)

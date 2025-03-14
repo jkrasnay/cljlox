@@ -228,8 +228,14 @@
 (defn synchronize
   [parse-state]
   (loop [parse-state (drop-token parse-state)]
-    (if (#{:class :fun :var :for :if :while :print :return} (:token-type (next-token parse-state)))
+    (cond
+      (nil? (next-token parse-state))
       parse-state
+
+      (#{:class :fun :var :for :if :while :print :return} (:token-type (next-token parse-state)))
+      parse-state
+
+      :else
       (recur (drop-token parse-state)))))
 
 
@@ -240,8 +246,9 @@
       (match parse-state :var) (-> parse-state drop-token var-declaration)
       :else                    (-> parse-state statement))
     (catch Exception e
-      (println (.getMessage e))
-      (synchronize parse-state))))
+      (-> parse-state
+          (update :errors conj (.getMessage e))
+          synchronize))))
 
 
 (defn parse-tokens
