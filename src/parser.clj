@@ -175,9 +175,32 @@
   (binary-expr parse-state term :greater :greater-equal :less :less-equal))
 
 
-(defn expression
+(defn equality
   [parse-state]
   (binary-expr parse-state comparison :bang-equal :equal-equal))
+
+
+(defn assignment
+  [parse-state]
+  (let [parse-state (equality parse-state)
+        expr (:ast parse-state)]
+    (if (match parse-state :equal)
+      (let [;equals (:ast parse-state)
+            parse-state (-> parse-state
+                            drop-token
+                            assignment)
+            value (:ast parse-state)]
+        (if (= :variable (:node-type expr))
+          (assoc parse-state :ast {:node-type :assign
+                                   :name (:name expr)
+                                   :value value})
+          (throw-error expr "Invalid assignment target.")))
+      parse-state)))
+
+
+(defn expression
+  [parse-state]
+  (assignment parse-state))
 
 
 (defn expression-statement
@@ -276,3 +299,7 @@
     (if (seq errors)
       {:errors errors}
       (parse-tokens tokens))))
+
+
+(comment
+  (parse "a = 3"))

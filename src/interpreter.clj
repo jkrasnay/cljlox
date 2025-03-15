@@ -10,6 +10,20 @@
     node-type))
 
 
+;;-- Environments ----------------------------------------------------------
+
+
+(defn env-assign
+  [env name value]
+  (assoc env name value))
+
+
+(defn env-get
+  [env name]
+  ; TODO: search in parent env's
+  (get env name))
+
+
 ;;-- Expressions ----------------------------------------------------------
 
 
@@ -20,7 +34,7 @@
 
 (defmethod evaluate :variable
   [node env]
-  [(get env (:name node)) env])
+  [(env-get env (:name node)) env])
 
 (defmethod evaluate :grouping
   [{:keys [expression]} env]
@@ -55,6 +69,12 @@
        :bang-equal    (not= left-value right-value)
        :equal-equal   (= left-value right-value))
      env]))
+
+
+(defmethod evaluate :assign
+  [{:keys [name value]} env]
+  (let [[value env] (evaluate value env)]
+    [value (env-assign env name value)]))
 
 
 ;;-- Statements ----------------------------------------------------------
