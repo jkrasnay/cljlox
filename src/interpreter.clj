@@ -87,6 +87,17 @@
     [nil env]))
 
 
+(defmethod evaluate :if
+  [{:keys [condition
+           then-branch
+           else-branch]} env]
+  (let [[value env] (evaluate condition env)]
+    (if value
+      (evaluate then-branch env)
+      (when else-branch
+        (evaluate else-branch env)))))
+
+
 (defmethod evaluate :print
   [{:keys [expression]} env]
   (let [[value env] (evaluate expression env)]

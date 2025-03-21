@@ -182,7 +182,8 @@
 
 (defn assignment
   [parse-state]
-  (let [parse-state (equality parse-state)
+  (let [first-token (next-token parse-state)
+        parse-state (equality parse-state)
         expr (:ast parse-state)]
     (if (match parse-state :equal)
       (let [;equals (:ast parse-state)
@@ -194,7 +195,7 @@
           (assoc parse-state :ast {:node-type :assign
                                    :name (:name expr)
                                    :value value})
-          (throw-error expr "Invalid assignment target.")))
+          (throw-error first-token "Invalid assignment target")))
       parse-state)))
 
 
@@ -212,6 +213,33 @@
                              :expression (:ast parse-state)})))
 
 
+(declare statement)
+
+
+(defn if-statement
+  [parse-state]
+  (let [parse-state (-> parse-state
+                        (assert-next-token :left-paren "Expect '(' after 'if'.")
+                        drop-token
+                        expression)
+        condition (:ast parse-state)
+        parse-state (-> parse-state
+                        (assert-next-token :right-paren "Expect ')' after if condition.")
+                        drop-token
+                        statement)
+        then-branch (:ast parse-state)
+        [else-branch parse-state] (if (= :else (:token-type (next-token parse-state)))
+                                    (let [parse-state (-> parse-state
+                                                          drop-token
+                                                          statement)]
+                                      [(:ast parse-state) parse-state])
+                                    [nil parse-state])]
+    (assoc parse-state :ast {:node-type :if
+                             :condition condition
+                             :then-branch then-branch
+                             :else-branch else-branch})))
+
+
 (defn print-statement
   [parse-state]
   (let [parse-state (-> parse-state
@@ -224,6 +252,7 @@
 (defn statement
   [parse-state]
   (cond
+    (match parse-state :if)    (-> parse-state drop-token if-statement)
     (match parse-state :print) (-> parse-state drop-token print-statement)
     :else                      (-> parse-state expression-statement)))
 
@@ -287,7 +316,7 @@
                  (into all-errors errors))
           (recur tokens
                  (conj statements ast)
-                 errors)))
+                 all-errors)))
       {:statements statements
        :errors all-errors})))
 
@@ -302,4 +331,7 @@
 
 
 (comment
-  (parse "a = 3"))
+  (parse "a = 3;")
+  (parse "1 + (3 = 3);")
+  (lexer/tokenize "if (3 = x) print y; else print z;")
+  (parse "if (3 = x) print y; else print z;"))
