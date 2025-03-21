@@ -28,12 +28,15 @@
 
 (defn repl
   []
-  (loop [env {}]
-    (print "cljlox> ")
-    (flush)
-    (let [s (read-line)]
-      (when s
-        (recur (evaluate! s env))))))
+  (let [prompt (if (System/getProperty "babashka.version")
+                 "bblox> "
+                 "cljlox> ")]
+    (loop [env {}]
+      (print prompt)
+      (flush)
+      (let [s (read-line)]
+        (when s
+          (recur (evaluate! s env)))))))
 
 
 (defn -main
