@@ -180,10 +180,20 @@
   (binary-expr parse-state comparison :bang-equal :equal-equal))
 
 
+(defn and-expr
+  [parse-state]
+  (binary-expr parse-state equality :and))
+
+
+(defn or-expr
+  [parse-state]
+  (binary-expr parse-state and-expr :or))
+
+
 (defn assignment
   [parse-state]
   (let [first-token (next-token parse-state)
-        parse-state (equality parse-state)
+        parse-state (or-expr parse-state)
         expr (:ast parse-state)]
     (if (match parse-state :equal)
       (let [;equals (:ast parse-state)
@@ -334,4 +344,5 @@
   (parse "a = 3;")
   (parse "1 + (3 = 3);")
   (lexer/tokenize "if (3 = x) print y; else print z;")
-  (parse "if (3 = x) print y; else print z;"))
+  (parse "if (3 = x) print y; else print z;")
+  (parse "true and false;"))

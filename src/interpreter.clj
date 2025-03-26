@@ -52,7 +52,25 @@
 
 (defmethod evaluate :binary
   [{:keys [left operator right]} env]
-  (let [[left-value env] (evaluate left env)
+  (if (#{:and :or} (:token-type operator))
+
+    ; Short circuit evaluation for logical operators
+    (let [[left-value env] (evaluate left env)]
+      (cond
+
+        (and (= :or (:token-type operator))
+             left-value)
+        [left-value env]
+
+        (and (= :and (:token-type operator))
+             (not left-value))
+        [left-value env]
+
+        :else
+        (evaluate right env)))
+
+    ; Regular (non-logical) binary operators
+    (let [[left-value env] (evaluate left env)
         [right-value env] (evaluate right env)]
     [(condp = (:token-type operator)
        :greater       (> left-value right-value)
@@ -68,7 +86,7 @@
                         (str left-value right-value))
        :bang-equal    (not= left-value right-value)
        :equal-equal   (= left-value right-value))
-     env]))
+     env])))
 
 
 (defmethod evaluate :assign
