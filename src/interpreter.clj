@@ -123,6 +123,16 @@
     [nil env]))
 
 
+(defmethod evaluate :block
+  [{:keys [statements]} env]
+  (reduce (fn [env statement]
+            (let [[_ env] (evaluate statement env)]
+              env))
+          env
+          statements)
+  [nil env])
+
+
 (defmethod evaluate :var
   [{:keys [name initializer]} env]
   (let [[value env] (if initializer

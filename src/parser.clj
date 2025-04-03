@@ -96,6 +96,11 @@
     (some #(= % next-type) token-types)))
 
 
+(defn eof?
+  [parse-state]
+  (nil? (next-token parse-state)))
+
+
 (defn binary-expr
   "Parses a binary expression.
 
@@ -146,7 +151,8 @@
                                             drop-token
                                             (assoc :ast {:node-type :variable
                                                          :name (:lexeme (next-token parse-state))}))
-    :else (throw-error (next-token parse-state) "Expected expression")))
+    :else (do (pprint parse-state)
+              (throw-error (next-token parse-state) "Expected expression"))))
 
 
 (defn unary
@@ -238,7 +244,7 @@
                         drop-token
                         statement)
         then-branch (:ast parse-state)
-        [else-branch parse-state] (if (= :else (:token-type (next-token parse-state)))
+        [else-branch parse-state] (if (match parse-state :else)
                                     (let [parse-state (-> parse-state
                                                           drop-token
                                                           statement)]
@@ -259,12 +265,36 @@
                              :expression (:ast parse-state)})))
 
 
+(declare declaration)
+
+
+(defn block
+  [parse-state]
+  (loop [parse-state parse-state
+         statements []]
+    (cond
+
+      (match parse-state :right-brace)
+      (-> parse-state
+          drop-token
+          (assoc :ast {:node-type :block
+                       :statements statements}))
+
+      (eof? parse-state)
+      (throw-error (next-token parse-state) "Unterminated block")
+
+      :else
+      (let [parse-state (declaration parse-state)]
+        (recur parse-state (conj statements (:ast parse-state)))))))
+
+
 (defn statement
   [parse-state]
   (cond
-    (match parse-state :if)    (-> parse-state drop-token if-statement)
-    (match parse-state :print) (-> parse-state drop-token print-statement)
-    :else                      (-> parse-state expression-statement)))
+    (match parse-state :if)         (-> parse-state drop-token if-statement)
+    (match parse-state :print)      (-> parse-state drop-token print-statement)
+    (match parse-state :left-brace) (-> parse-state drop-token block)
+    :else                           (-> parse-state expression-statement)))
 
 
 (defn var-declaration
@@ -291,7 +321,8 @@
   [parse-state]
   (loop [parse-state (drop-token parse-state)]
     (cond
-      (nil? (next-token parse-state))
+
+      (eof? parse-state)
       parse-state
 
       (#{:class :fun :var :for :if :while :print :return} (:token-type (next-token parse-state)))
