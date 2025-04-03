@@ -240,7 +240,7 @@
                         expression)
         condition (:ast parse-state)
         parse-state (-> parse-state
-                        (assert-next-token :right-paren "Expect ')' after if condition.")
+                        (assert-next-token :right-paren "Expect ')' after 'if' condition.")
                         drop-token
                         statement)
         then-branch (:ast parse-state)
@@ -263,6 +263,23 @@
                         assert-and-drop-semicolon)]
     (assoc parse-state :ast {:node-type :print
                              :expression (:ast parse-state)})))
+
+
+(defn while-statement
+  [parse-state]
+  (let [parse-state (-> parse-state
+                        (assert-next-token :left-paren "Expect '(' after 'while'.")
+                        drop-token
+                        expression)
+        condition (:ast parse-state)
+        parse-state (-> parse-state
+                        (assert-next-token :right-paren "Expect ')' after 'while' condition.")
+                        drop-token
+                        statement)
+        body (:ast parse-state)]
+    (assoc parse-state :ast {:node-type :while
+                             :condition condition
+                             :body body})))
 
 
 (declare declaration)
@@ -293,6 +310,7 @@
   (cond
     (match parse-state :if)         (-> parse-state drop-token if-statement)
     (match parse-state :print)      (-> parse-state drop-token print-statement)
+    (match parse-state :while)      (-> parse-state drop-token while-statement)
     (match parse-state :left-brace) (-> parse-state drop-token block)
     :else                           (-> parse-state expression-statement)))
 

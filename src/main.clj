@@ -7,23 +7,18 @@
 
 
 (defn evaluate!
-  [s env]
+  [s]
   (when-not (string/blank? s)
     (let [{:keys [errors
                   statements]} (parser/parse s)]
       (if (seq errors)
-        (do (doseq [error errors]
-              (println error))
-            env)
-        (reduce (fn [env statement]
-                  (try
-                    (let [[_ env] (interpreter/evaluate statement env)]
-                      env)
-                    (catch Exception e
-                      (println (.getMessage e))
-                      env)))
-                env
-                statements)))))
+        (doseq [error errors]
+          (println error))
+        (doseq [statement statements]
+          (try
+            (interpreter/evaluate statement interpreter/globals)
+            (catch Exception e
+              (println (.getMessage e)))))))))
 
 
 (defn repl
@@ -31,19 +26,18 @@
   (let [prompt (if (System/getProperty "babashka.version")
                  "bblox> "
                  "cljlox> ")]
-    (loop [env {}]
+    (loop []
       (print prompt)
       (flush)
       (let [s (read-line)]
         (when s
-          (recur (evaluate! s env)))))))
+          (evaluate! s)
+          (recur))))))
 
 
 (defn -main
   [& args]
   (if (seq args)
-    (reduce (fn [env arg]
-              (evaluate! (slurp arg) env))
-            {}
-            args)
+    (doseq [file args]
+      (evaluate! (slurp file)))
     (repl)))
