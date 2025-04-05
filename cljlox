@@ -1,2 +1,2 @@
 #!/bin/bash
-clj -M -m main $*
+clj -M -m cljlox.main $*

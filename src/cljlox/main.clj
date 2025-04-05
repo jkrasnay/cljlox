@@ -1,9 +1,8 @@
-(ns main
+(ns cljlox.main
   (:require
     [clojure.string :as string]
-    interpreter
-    lexer
-    parser))
+    [cljlox.interpreter :as interpreter]
+    [cljlox.parser :as parser]))
 
 
 (defn evaluate!

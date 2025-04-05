@@ -1,4 +1,4 @@
-(ns interpreter)
+(ns cljlox.interpreter)
 
 
 (defmulti evaluate

@@ -1,4 +1,4 @@
-(ns lexer)
+(ns cljlox.lexer)
 
 ;; Here we use a state machine fed by each character in the source,
 ;; one at a time.

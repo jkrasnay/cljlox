@@ -1,2 +1,2 @@
 #!/bin/bash
-rlwrap bb -cp src -m main $*
+rlwrap bb -cp src -m cljlox.main $*

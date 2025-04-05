@@ -1,8 +1,8 @@
-(ns parser
+(ns cljlox.parser
   (:require
     [clojure.pprint :refer [pprint]]
     [clojure.string :as string]
-    lexer))
+    [cljlox.lexer :as lexer]))
 
 
 ;; Like the lexer, the parser needs a parse state to thread through our parsing functions.
