@@ -2,6 +2,7 @@
   (:require
     [clojure.pprint :refer [pprint]]
     [clojure.string :as string]
+    [cljlox.ast :as ast]
     [cljlox.lexer :as lexer]))
 
 
@@ -12,8 +13,7 @@
 ;; :tokens | Seq of the remaining tokens to be parsed.
 ;; :ast    | Head of the AST parsed so far
 ;;
-;; The AST is a tree of nodes.  Each node is a map with the key `:node-type` corresponding
-;; to the AST sub-class in the book, along with any other keys required by that node type.
+;; The AST is a tree of nodes, represented by records in the cljlox.ast namespace.
 ;;
 
 
@@ -114,20 +114,15 @@
             operator (next-token parse-state)
             parse-state (sub-expr (drop-token parse-state))
             right (:ast parse-state)]
-        (recur (assoc parse-state :ast {:node-type :binary
-                                        :left left
-                                        :operator operator
-                                        :right right})))
+        (recur (assoc parse-state :ast (ast/->Binary left operator right))))
       parse-state)))
 
 
 (defn literal
   ([parse-state value]
-   (-> parse-state drop-token (assoc :ast {:node-type :literal
-                                           :value value})))
+   (-> parse-state drop-token (assoc :ast (ast/->Literal value))))
   ([parse-state]
-   (-> parse-state drop-token (assoc :ast {:node-type :literal
-                                           :value (-> parse-state next-token :value)}))))
+   (-> parse-state drop-token (assoc :ast (ast/->Literal (-> parse-state next-token :value))))))
 
 
 (declare expression)
@@ -145,12 +140,10 @@
                                                               expression
                                                               (assert-next-token :right-paren "Expected ')' after expression")
                                                               drop-token)]
-                                          (assoc parse-state :ast {:node-type :grouping
-                                                                   :expression (:ast parse-state)}))
+                                          (assoc parse-state :ast (ast/->Grouping (:ast parse-state))))
     (match parse-state :identifier)     (-> parse-state
                                             drop-token
-                                            (assoc :ast {:node-type :variable
-                                                         :name (:lexeme (next-token parse-state))}))
+                                            (assoc :ast (ast/->Variable (:lexeme (next-token parse-state)))))
     :else (do (pprint parse-state)
               (throw-error (next-token parse-state) "Expected expression"))))
 
@@ -160,9 +153,7 @@
   (if (match parse-state :bang :minus)
     (let [operator (next-token parse-state)
           parse-state (unary (drop-token parse-state))]
-      (assoc parse-state :ast {:node-type :unary
-                               :operator operator
-                               :right (:ast parse-state)}))
+      (assoc parse-state :ast (ast/->Unary operator (:ast parse-state))))
     (primary parse-state)))
 
 
@@ -207,10 +198,8 @@
                             drop-token
                             assignment)
             value (:ast parse-state)]
-        (if (= :variable (:node-type expr))
-          (assoc parse-state :ast {:node-type :assign
-                                   :name (:name expr)
-                                   :value value})
+        (if (instance? cljlox.ast.Variable expr)
+          (assoc parse-state :ast (ast/->Assign (:name expr) value))
           (throw-error first-token "Invalid assignment target")))
       parse-state)))
 
@@ -225,8 +214,7 @@
   (let [parse-state (-> parse-state
                         expression
                         assert-and-drop-semicolon)]
-    (assoc parse-state :ast {:node-type :expression
-                             :expression (:ast parse-state)})))
+    (assoc parse-state :ast (ast/->Expression (:ast parse-state)))))
 
 
 (declare statement)
@@ -250,10 +238,7 @@
                                                           statement)]
                                       [(:ast parse-state) parse-state])
                                     [nil parse-state])]
-    (assoc parse-state :ast {:node-type :if
-                             :condition condition
-                             :then-branch then-branch
-                             :else-branch else-branch})))
+    (assoc parse-state :ast (ast/->If condition then-branch else-branch))))
 
 
 (defn print-statement
@@ -261,8 +246,7 @@
   (let [parse-state (-> parse-state
                         expression
                         assert-and-drop-semicolon)]
-    (assoc parse-state :ast {:node-type :print
-                             :expression (:ast parse-state)})))
+    (assoc parse-state :ast (ast/->Print (:ast parse-state)))))
 
 
 (defn while-statement
@@ -277,9 +261,7 @@
                         drop-token
                         statement)
         body (:ast parse-state)]
-    (assoc parse-state :ast {:node-type :while
-                             :condition condition
-                             :body body})))
+    (assoc parse-state :ast (ast/->While condition body))))
 
 
 (declare declaration)
@@ -294,8 +276,7 @@
       (match parse-state :right-brace)
       (-> parse-state
           drop-token
-          (assoc :ast {:node-type :block
-                       :statements statements}))
+          (assoc :ast (ast/->Block statements)))
 
       (eof? parse-state)
       (throw-error (next-token parse-state) "Unterminated block")
@@ -325,13 +306,10 @@
                             drop-token
                             expression
                             assert-and-drop-semicolon)]
-        (assoc parse-state :ast {:node-type :var
-                                 :name name
-                                 :initializer (:ast parse-state)}))
+        (assoc parse-state :ast (ast/->Var name (:ast parse-state))))
       (-> parse-state
           assert-and-drop-semicolon
-          (assoc :ast {:node-type :var
-                       :name name})))))
+          (assoc :ast (ast/->Var name nil))))))
 
 
 ;; Section 6.3.3
