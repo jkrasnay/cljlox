@@ -40,6 +40,7 @@
 
 ;;-- Evaluate ----------------------------------------------------------
 
+(declare build-function)
 
 (defprotocol Evaluate
   (evaluate [this env]))
@@ -60,6 +61,22 @@
   cljlox.ast.Grouping
   (evaluate [{:keys [expression]} env]
     (evaluate expression env))
+
+
+  cljlox.ast.Call
+  (evaluate [{:keys [callee paren arguments]} env]
+    (let [callee (evaluate callee env)
+          args (map #(evaluate % env) arguments)]
+      (if (fn? callee)
+        (callee args env)
+        (throw (ex-info (str "Expected function, found " callee) {})))))
+
+
+  cljlox.ast.Function
+  (evaluate [{:keys [name]
+              :as fun} env]
+    (env-assign env (:lexeme name) (build-function fun))
+    nil)
 
 
   cljlox.ast.Unary
@@ -131,12 +148,18 @@
           (evaluate else-branch env)))))
 
 
-
   cljlox.ast.Print
   (evaluate [{:keys [expression]} env]
     (let [value (evaluate expression env)]
       (println value)
       nil))
+
+
+  cljlox.ast.Return
+  (evaluate [{:keys [value]} env]
+    (let [value (when value
+                  (evaluate value env))]
+      (throw (ex-info "returning" {:value value}))))
 
 
   cljlox.ast.While
@@ -164,3 +187,23 @@
       nil))
 
   )
+
+
+;;-- Function Support ----------------------------------------------------------
+
+
+(defn build-function
+  [fun]
+  (let [{:keys [name params body]} fun]
+    (fn [args env]
+      (let [local-env (environment globals)]
+        (doseq [[param arg] (map vector params args)]
+          (env-assign local-env (:lexeme param) arg))
+        (try
+          (evaluate body local-env)
+          nil
+          (catch Exception e
+            (:value (ex-data e))))))))
+
+
+

@@ -148,13 +148,53 @@
               (throw-error (next-token parse-state) "Expected expression"))))
 
 
+
+(defn finish-call
+  "Called when we match a left-paren after a primary expression.
+  "
+  [parse-state]
+  (let [parse-state (drop-token parse-state)
+        callee (:ast parse-state)]
+    (if (match parse-state :right-paren)
+      (-> parse-state
+          drop-token
+          (assoc :ast (ast/->Call callee (next-token parse-state) [])))
+      (let [parse-state (expression parse-state)]
+        (loop [parse-state parse-state
+               args [(:ast parse-state)]]
+          (cond
+
+            (match parse-state :right-paren)
+            (-> parse-state
+                drop-token
+                (assoc :ast (ast/->Call callee (next-token parse-state) args)))
+
+            (match parse-state :comma)
+            (let [parse-state (-> parse-state
+                                  drop-token
+                                  expression)]
+              (recur parse-state (conj args (:ast parse-state))))
+
+            :else
+            (throw-error (next-token parse-state) "Expected ')' or ','")))))))
+
+
+(defn call
+  [parse-state]
+  (let [parse-state (primary parse-state)]
+    (loop [parse-state parse-state]
+      (if (match parse-state :left-paren)
+        (recur (finish-call parse-state))
+        parse-state))))
+
+
 (defn unary
   [parse-state]
   (if (match parse-state :bang :minus)
     (let [operator (next-token parse-state)
           parse-state (unary (drop-token parse-state))]
       (assoc parse-state :ast (ast/->Unary operator (:ast parse-state))))
-    (primary parse-state)))
+    (call parse-state)))
 
 
 (defn factor
@@ -249,6 +289,17 @@
     (assoc parse-state :ast (ast/->Print (:ast parse-state)))))
 
 
+(defn return-statement
+  [parse-state]
+  (let [[parse-state value] (if (match parse-state :semicolon)
+                              [parse-state nil]
+                              (let [parse-state (expression parse-state)]
+                                [parse-state (:ast parse-state)]))]
+    (-> parse-state
+        assert-and-drop-semicolon
+        (assoc :ast (ast/->Return value)))))
+
+
 (defn while-statement
   [parse-state]
   (let [parse-state (-> parse-state
@@ -291,9 +342,40 @@
   (cond
     (match parse-state :if)         (-> parse-state drop-token if-statement)
     (match parse-state :print)      (-> parse-state drop-token print-statement)
+    (match parse-state :return)     (-> parse-state drop-token return-statement)
     (match parse-state :while)      (-> parse-state drop-token while-statement)
     (match parse-state :left-brace) (-> parse-state drop-token block)
     :else                           (-> parse-state expression-statement)))
+
+
+(defn function-definition
+  [parse-state]
+  (assert-next-token parse-state :identifier "Expected function name")
+  (let [name (next-token parse-state)
+        parse-state (drop-token parse-state)
+        _ (assert-next-token parse-state :left-paren "Expected '(' after function name")
+        parse-state (drop-token parse-state)
+        [parse-state params] (if (match parse-state :right-paren)
+                               [(drop-token parse-state) []]
+                               (let [first-arg (next-token parse-state)]
+                                 (loop [parse-state (drop-token parse-state)
+                                        params [first-arg]]
+                                   (cond
+
+                                     (match parse-state :right-paren)
+                                     [(drop-token parse-state) params]
+
+                                     (match parse-state :comma)
+                                     (let [parse-state (drop-token parse-state)]
+                                       (recur (drop-token parse-state) (conj params (next-token parse-state))))
+
+                                     :else
+                                     (throw-error (next-token parse-state) "Expected ')' or ','")))))
+        parse-state (do
+                      (assert-next-token parse-state :left-brace "Expected '{' before function")
+                      (block (drop-token parse-state)))
+        block (:ast parse-state)]
+    (assoc parse-state :ast (ast/->Function name params block))))
 
 
 (defn var-declaration
@@ -332,6 +414,7 @@
   [parse-state]
   (try
     (cond
+      (match parse-state :fun) (-> parse-state drop-token function-definition)
       (match parse-state :var) (-> parse-state drop-token var-declaration)
       :else                    (-> parse-state statement))
     (catch Exception e
@@ -372,4 +455,14 @@
   (parse "1 + (3 = 3);")
   (lexer/tokenize "if (3 = x) print y; else print z;")
   (parse "if (3 = x) print y; else print z;")
-  (parse "true and false;"))
+  (parse "true and false;")
+  (parse "foo(x, 3);")
+  (parse "{ a = 3; }")
+  (parse "fun foo(x, y, z) { print 1; }")
+  (parse "return;")
+  (parse "return 37;")
+  (try
+    (throw (ex-info "foo" {:value 37}))
+    (catch Exception e
+      (ex-data e)))
+  )
